@@ -29,6 +29,9 @@
             skip_invisible  : false,
             appear          : null,
             load            : null,
+            error_finish    : null,
+            retry_count     : 0,
+            retry_duration  : 2000,
             placeholder     : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAANSURBVBhXYzh8+PB/AAffA0nNPuCLAAAAAElFTkSuQmCC"
         };
 
@@ -103,8 +106,54 @@
                         settings.appear.call(self, elements_left, settings);
                     }
                     $("<img />")
-                        .one("load", function() {
-                            var original = $self.attr("data-" + settings.data_attribute);
+                        .on('error', function() {
+                            var $thisImg = $(this);
+
+                    	if (!$self.retry_count) {
+                    	    $self.retry_count = 1;
+                    	}
+
+                    	if ($self.retry_count > settings.retry_count) {
+                    	    this.onerror = null;
+
+                            if (settings.error_finish) {
+                    		    var elements_left = elements.length;
+                    		    settings.error_finish.call(self, elements_left, settings);
+                    		}
+                    		return;
+                    	}
+
+                    	function _inherits(subClass, superClass) {
+                    	    if (typeof superClass !== "function" && superClass !== null) {
+                    	        throw new TypeError("Super expression must either be null or a function, not " + typeof superClass);
+                    	    }
+                    	    subClass.prototype = Object.create(superClass && superClass.prototype, {
+                    	        constructor: { value: subClass, enumerable: false, writable: true, configurable: true }
+                    	    });
+                    	        if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass;
+                    	 }
+
+
+                    	setTimeout(function() {
+                    	    var retryImg = new Image();
+                    		var newSrc = $self.attr("data-" + settings.data_attribute) + '?' + new Date().getTime(); // add a cache breaker string
+                    		retryImg.onerror = function() {
+                    		    $thisImg.trigger('error'); // retry
+                    		}
+                    		retryImg.onload = function() {
+                    		    $thisImg.trigger('load', retryImg.src); // Raise a load event with giving the image url and assigned function will handle the rest as same as normal case
+                    		}
+                    		retryImg.src = newSrc;
+
+                    		$self.retry_count++;
+
+                    		}, settings.retry_duration);
+                        })
+                        .one("load", function(event, original) {
+                            if (!original) {
+                                original = $self.attr("data-" + settings.data_attribute);
+                            }
+
                             $self.hide();
                             if ($self.is("img")) {
                                 $self.attr("src", original);
